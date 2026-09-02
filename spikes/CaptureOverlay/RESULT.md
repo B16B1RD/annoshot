@@ -13,6 +13,9 @@ Win32 レイヤードウィンドウ直叩きは不要。
 **暫定である理由（AC-3 未達）**: Issue 4.4 MUST「DPI 100% と 150% の混在で実測しずれを px で記録する」は、計測環境がモニタ 1 台（150%）のため
 **未実施**。Issue Assumptions の代替手段（表示スケールを 100% に変更して再計測）も本 PR では実施していない（実機の表示設定変更を伴うため
 坂口さんの手で行う）。したがって AC-3 / AC-5 は未達で、本結論は「150% 単独では成立する」までを確認した暫定値である。
+同じ基準で AC-1 / AC-2 の Given「モニタ 2 枚以上」も未再現のため、取得時間・表示遅延の数値は単一モニタ値であり、複数モニタでの
+実測ではない（申し送りの「並列取得の余地」も 1 台実測からの推定）。未計測 1.(a) の 2 台目接続を 1 回実施すれば AC-1〜AC-3 が同時に埋まる。
+残作業は follow-up Issue #17 で追跡する。
 確定には下記「未計測」節 1. の追加計測が必要で、その結果で `size corrected` / `position corrected` の補正行が出た場合は
 `EnsureGeometry` の補正方式を Sub-4 の実装指針に含める。なお Assumptions の代替手段（単独スケール 2 回計測）は AC-3 の Given
 「100% と 150% が同時接続」を満たさないため、それだけで AC-3 達成とはせず、2 台構成での再計測または Issue 側での Given 緩和の判断を要する。
@@ -103,16 +106,20 @@ Win32 レイヤードウィンドウ直叩きは不要。
 
 - `CaptureSupport.Probe` は `OperatingSystem.IsWindows()` / ビルド 18362 以上 / `GraphicsCaptureSession.IsSupported()` の順に判定し、Windows.* 型の参照は最後の 1 メソッドに閉じている。
 - WSL2（Linux）で実行: `Windows.Graphics.Capture は未サポートです（理由: Windows ではありません ...）` を出力し終了コード 0、Avalonia は起動しない。
+  **非 Windows では `--gdi` を併用しても続行しない**（GDI も Avalonia の Win32 バックエンドも動かないため、理由を問わず終了コード 0 で終える）。
 - Windows で `--force-unsupported`: `IsSupported()` の戻り値だけを false に差し替え、同じ分岐で `（理由: --force-unsupported 指定）` を出力し終了コード 0。
+- Windows で `--force-unsupported --gdi`: 未サポート判定を迂回して GDI BitBlt 経路で続行する。実機で `--auto --iterations 3` を実行し、
+  GDI 経路で全計測が完走（取得経路 = GDI BitBlt、解像度一致 OK、終了コード 0）することを確認済み。
 - 未サポート時の代替は GDI BitBlt（`--gdi`、本 spike に実装済み、カーソル切替不可）または Desktop Duplication。
 
 ## 未計測（坂口さんの実機で追加確認が必要な項目）
 
-1. **DPI 混在での座標一致（AC-3 の核心、未達）**: 計測環境はモニタ 1 台のため混在を再現できなかった。Issue の前提どおり、
+1. **DPI 混在での座標一致（AC-3 の核心、未達。follow-up: #17）**: 計測環境はモニタ 1 台のため混在を再現できなかった。Issue の前提どおり、
    (a) 2 台目を接続して 100% + 150% にする、または (b) 表示スケールを 100% に変更してもう 1 回 `--auto` を実行し、
-   `out/measurements.md` の「座標一致」表と「ウィンドウ配置ログ」（`size corrected` / `position corrected` 行の有無）を本ファイルに転記する。
+   出力先（既定は `bin/Release/.../out/`、コピー実行時はコピー先配下）の `measurements.md` の「座標一致」表・「ウィンドウ配置ログ」
+   （`size corrected` / `position corrected` 行の有無）・「D3D11 ドライバ」行を本ファイルに転記する。
    混在時に補正行が出た場合は、`OverlayWindow.EnsureGeometry` の方式（Win32 実効 DPI で初期配置 → `RenderScaling` で補正）が Sub-4 の実装指針になる。
-2. **手動ドラッグ（T-03）**: 既定モードで 150% モニタ上の UI 要素を囲んで `out/crop-N.png` を目視確認する。`--auto` の自動ずれ算出（0 px）と整合するはず。
+2. **手動ドラッグ（T-03）**: 既定モードで 150% モニタ上の UI 要素を囲んで出力先の `crop-N.png` を目視確認する。`--auto` の自動ずれ算出（0 px）と整合するはず。
 3. **WGC の黄枠**: セッションが ~50 ms しか生きないため目視で見えるかは未確認。
 
 ## 検証手順
@@ -129,29 +136,31 @@ dotnet format spikes/CaptureOverlay/CaptureOverlay.csproj --verify-no-changes
 # 未サポート経路（AC-6 / T-06）: WSL でもそのまま動く。終了コード 0 とメッセージを確認
 dotnet run --project spikes/CaptureOverlay -c Release -- --force-unsupported
 
-# 全自動計測（Windows のみ）。全モニタが数秒間オーバーレイで覆われる。結果は out/measurements.md と PNG
+# 全自動計測（Windows のみ）。全モニタが数秒間オーバーレイで覆われる。結果は出力先の measurements.md と PNG
 dotnet run --project spikes/CaptureOverlay -c Release -- --auto
 
-# GDI BitBlt 経路との比較
+# GDI BitBlt 経路との比較（Windows のみ。非 Windows では --gdi を付けても未サポート終了する）
 dotnet run --project spikes/CaptureOverlay -c Release -- --auto --gdi
 
-# 手動: オーバーレイ上で矩形ドラッグ → out/crop-N.png に保存、ずれを HUD に表示。Esc で終了
+# 手動（Windows のみ）: オーバーレイ上で矩形ドラッグ → 出力先の crop-N.png に保存、ずれを HUD に表示。Esc で終了
 dotnet run --project spikes/CaptureOverlay -c Release
 ```
 
 WSL2 から Windows で実行する場合は、`bin/Release/net8.0-windows10.0.19041.0/` を Windows 側のパス（例: `%TEMP%\CaptureOverlay-spike`）にコピーし、
 そのディレクトリで `dotnet.exe CaptureOverlay.dll --auto` を実行する（UNC パス上では `cmd.exe` が動かないため）。
 
-**出力先と機微データの扱い**: 出力（`measurements.md` と PNG）は既定で実行ファイルと同じ場所の `out/`（= `bin/Release/.../out/`、`.gitignore` の `bin/` 配下）に
-書かれる。`--out` で別の場所を指定した場合はその場所が git 管理外であることを確認すること。PNG は**デスクトップ全面のキャプチャ**（他アプリの内容・認証画面等が
+**出力先と機微データの扱い**: 出力（`measurements.md` と PNG）は既定で実行ファイルと同じ場所の `out/`（`dotnet run` なら `bin/Release/.../out/` で
+`.gitignore` の `bin/` 配下。`%TEMP%` 等にコピーして実行した場合はコピー先の `out/`）に書かれる。`--out` で別の場所を指定した場合はその場所が git 管理外であることを確認すること。PNG は**デスクトップ全面のキャプチャ**（他アプリの内容・認証画面等が
 写り込む）なので、確認後は削除し、リポジトリにコミットしない。`%TEMP%\CaptureOverlay-spike` にコピーして実行した場合も、終了後にそのディレクトリを削除する。
-`--auto` はエラー終了時に終了コード 1 を返すので、無人実行では終了コードで成否を判定できる。
+終了コード: 例外・タイムアウト・Alignment セルフチェック失敗（ずれ計測値が無効）は 1 で終了する。プラットフォーム初期化の失敗（非対応環境で
+強引に起動した場合等）は runtime の abort コードになる。ただし解像度不一致（取得時間表の `NG`）は終了コードに現れないため、無人実行では
+終了コードに加えて `measurements.md` の判定行（`NG` / `**不一致**` / `**超過**`）も確認すること。
 
 ## Sub-4 への申し送り
 
 - オーバーレイ: Avalonia `Window` をモニタごとに 1 枚。`Position` は物理 px、`Width/Height` は「物理 px / 実効 DPI スケール」で置き、`Opened` / `ScalingChanged` で `RenderScaling` と突き合わせて補正する（本 spike の `OverlayWindow.EnsureGeometry`）。
 - 座標変換: ウィンドウ論理座標 → 物理 px は Avalonia の `PointToScreen` をそのまま使えばよい（150% で 0 px ずれ）。
-- 取得: WGC の CPU 読み出しは `SoftwareBitmap.CreateCopyFromSurfaceAsync` で外部ライブラリ無しに済む。複数モニタは並列取得で 50 ms 台に収める余地あり。
+- 取得: WGC の CPU 読み出しは `SoftwareBitmap.CreateCopyFromSurfaceAsync` で外部ライブラリ無しに済む。複数モニタの並列取得で 50 ms 台に収める余地はあるが、これは 1 台実測（56.5 ms）からの推定で、複数モニタでの実測ではない。
 - 自身の除外: `WDA_EXCLUDEFROMCAPTURE` が WGC / GDI 双方に効く。録画（Sub-8）で使う。
 - TFM: `IsBorderRequired` を使うなら `net8.0-windows10.0.20348.0` 以上へ（API 導入ビルド）。黄枠抑止には `RequestAccessAsync(Borderless)` +
   `graphicsCaptureWithoutBorder` capability（パッケージ化）が必要。19041 のまま / 未パッケージなら黄枠は受容する。

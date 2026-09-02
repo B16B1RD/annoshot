@@ -113,7 +113,13 @@ internal static class SpikeRunner
                 await MeasureCursorToggleAsync();
                 await MeasureExclusionAsync();
                 DumpGeometryLog();
-                Finish();
+                // セルフチェック失敗 = ずれ計測値が無効。無人実行が終了コードで成否を判定できるよう非 0 で終える
+                if (!_measurementsValid)
+                {
+                    _report.Line("**INVALID**: Alignment セルフチェック失敗のため終了コード 1 で終了します");
+                }
+
+                Finish(_measurementsValid ? 0 : 1);
                 return;
             }
 

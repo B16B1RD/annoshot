@@ -9,10 +9,10 @@ internal sealed class SpikeOptions
         使い方: dotnet run --project spikes/CaptureOverlay -- [options]
 
           --auto                無操作で全計測を実行し out/measurements.md を書いて終了する
-          --gdi                 取得経路を Windows.Graphics.Capture ではなく GDI BitBlt にする
-          --force-unsupported   IsSupported() の戻り値を false に差し替える（AC-6 の経路確認用）
+          --gdi                 取得経路を Windows.Graphics.Capture ではなく GDI BitBlt にする（Windows 上では WGC 未サポートでも続行する）
+          --force-unsupported   IsSupported() の戻り値を false に差し替える（AC-6 の経路確認用。--gdi 併用時は Windows 上で GDI 経路が走る）
           --iterations N        取得時間 / 表示遅延の試行回数（既定 10）
-          --out DIR             出力ディレクトリ（既定: 実行ファイルと同じ場所の out/。bin/ 配下なので git に入らない）
+          --out DIR             出力ディレクトリ（既定: 実行ファイルと同じ場所の out/。bin/ 配下、またはコピー実行時はコピー先配下）
           --help                この説明を表示する
 
         既定（--auto なし）はオーバーレイを表示し、矩形ドラッグで切り出し PNG を保存する。Esc で終了。
