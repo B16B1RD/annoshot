@@ -28,6 +28,6 @@ jobs:
       - name: Test
         run: dotnet test Annoshot.sln --no-build --configuration Release
 
-      # フォーマット逸脱はジョブ失敗として扱う（README の既知制約を参照）
+      # フォーマット逸脱はジョブ失敗として扱う（README の「CI」節を参照）
       - name: Format check
         run: dotnet format Annoshot.sln --verify-no-changes --no-restore
