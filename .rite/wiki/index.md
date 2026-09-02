@@ -13,9 +13,11 @@ bundle-root の frontmatter で OKF（Open Knowledge Format）v0.2 への準拠�
 
 | ページ | ドメイン | サマリー | 更新日 | 確信度 |
 |--------|---------|---------|--------|--------|
+| [vendor した生成テンプレートは消費者側で意味を持たないコメント参照を削除で解消する](pages/heuristics/vendored-template-comment-cleanup.md) | heuristics | 生成器のテンプレートをそのままコミットすると、削除済みマーカーや上流リポジトリ相対パスへのコメント参照が残り読者が追跡先を失う。設定値を変えず参照行だけ削除し、消費者側で意味を持つ情報のみ残すのが最小差分で、upgrade 差分ノイズとの天秤で判断する。 | 2026-09-02T10:30:00+00:00 | high |
+| [.NET プロジェクトでは rite の commands 自動検出が効かないため csproj 作成後に明示設定する](pages/heuristics/dotnet-commands-explicit-config.md) | heuristics | rite の build/test/lint 自動検出は package.json や pyproject.toml 等を手がかりにするため .NET では null のままになり、テスト検証が skip され TDD が degraded になる。csproj 作成後に dotnet コマンドを rite-config.yml へ明示する。 | 2026-09-02T10:30:00+00:00 | medium |
 
 ## 統計
 
-- 総ページ数: 0
-- ドメイン別: patterns=0, heuristics=0, anti-patterns=0
-- 最終更新: 2026-09-02T07:55:16+00:00
+- 総ページ数: 2
+- ドメイン別: patterns=0, heuristics=2, anti-patterns=0
+- 最終更新: 2026-09-02T10:30:00+00:00

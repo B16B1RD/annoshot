@@ -7,3 +7,5 @@ skip 等の機械可読状態は **各 raw source の frontmatter（`ingest_stat
 ## 2026-09-02
 
 * **init** — Wiki を初期化しました
+* **Create**: [vendor した生成テンプレートは消費者側で意味を持たないコメント参照を削除で解消する](pages/heuristics/vendored-template-comment-cleanup.md) — raw/reviews/20260902T101137Z-pr-2.md, raw/fixes/20260902T101618Z-pr-2.md を新規ページ化
+* **Create**: [.NET プロジェクトでは rite の commands 自動検出が効かないため csproj 作成後に明示設定する](pages/heuristics/dotnet-commands-explicit-config.md) — raw/reviews/20260902T101137Z-pr-2.md を新規ページ化
