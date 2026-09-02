@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CaptureOverlay.OverlayWindow"
+        Title="CaptureOverlay"
+        SystemDecorations="None"
+        Topmost="True"
+        ShowInTaskbar="False"
+        CanResize="False"
+        ShowActivated="True"
+        WindowStartupLocation="Manual"
+        Background="Black"
+        Cursor="Cross">
+  <Panel>
+    <!-- Stretch=Fill: 画像の物理ピクセル数 == ウィンドウの物理ピクセル数 のとき 1:1 で表示される -->
+    <Image Name="FrameImage" Stretch="Fill" />
+    <!-- 除外テスト用センチネル（マゼンタ）。表示中にキャプチャしてこの色が写るかで除外可否を判定する -->
+    <Rectangle Name="Sentinel" Fill="#FFFF00FF" IsVisible="False" />
+    <Canvas Name="SelectionCanvas">
+      <Rectangle Name="Selection"
+                 Stroke="#FF00A0FF" StrokeThickness="2" Fill="#4000A0FF"
+                 IsVisible="False" />
+    </Canvas>
+    <TextBlock Name="Hud"
+               HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"
+               Padding="8" Background="#B0000000" Foreground="White"
+               FontFamily="Consolas,monospace" FontSize="13" />
+  </Panel>
+</Window>

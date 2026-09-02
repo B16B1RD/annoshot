@@ -1,0 +1,4 @@
+# spike の実行出力（PNG / measurements.md）はコミットしない。結論は RESULT.md に転記する
+out/
+bin/
+obj/
