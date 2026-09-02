@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Windows.Graphics.Capture / Windows.Media.Ocr 等の WinRT 投影に必要な最小 TFM -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Annoshot.Core/Annoshot.Core.csproj" />
+  </ItemGroup>
+
+</Project>

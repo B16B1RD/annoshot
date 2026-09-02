@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # SDK は global.json で固定する（runner の最上位 SDK が選ばれて開発機とコンパイラ版がずれるのを防ぐ）
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Annoshot.sln
+
+      - name: Build
+        run: dotnet build Annoshot.sln --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test Annoshot.sln --no-build --configuration Release
+
+      # フォーマット逸脱はジョブ失敗として扱う（README の「CI」節を参照）
+      - name: Format check
+        run: dotnet format Annoshot.sln --verify-no-changes --no-restore
