@@ -29,7 +29,7 @@ Win32 レイヤードウィンドウ直叩きは不要。
 | Avalonia の DPI 追従 | `Opened` 時点で `RenderScaling=1.5` が Win32 の実効 DPI と一致し、サイズ / 位置の補正は不要だった |
 | カーソル込み / 抜き | `IsCursorCaptureEnabled` で切替可（差分 165 px） |
 | オーバーレイ自身の除外 | `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` で除外可（WGC / GDI とも） |
-| 代替 API の要否 | 本環境では不要。GDI BitBlt は `--gdi` で残してあり、`IsSupported()==false` の環境向けフォールバック候補（**未サポート環境での GDI 経路の実測は本 spike では未実施**。`--gdi` は WGC 未サポート判定を迂回して GDI で続行する） |
+| 代替 API の要否 | 本環境では不要。GDI BitBlt は `--gdi` で残してあり、`IsSupported()==false` の環境向けフォールバック候補（**真に未サポートな実機での GDI 経路の実測は未実施**。`--gdi` は **Windows 上でのみ** WGC 未サポート判定を迂回して GDI で続行し、非 Windows では終了コード 0 で終わる） |
 
 ## 4.3 の表
 
@@ -109,7 +109,8 @@ Win32 レイヤードウィンドウ直叩きは不要。
   **非 Windows では `--gdi` を併用しても続行しない**（GDI も Avalonia の Win32 バックエンドも動かないため、理由を問わず終了コード 0 で終える）。
 - Windows で `--force-unsupported`: `IsSupported()` の戻り値だけを false に差し替え、同じ分岐で `（理由: --force-unsupported 指定）` を出力し終了コード 0。
 - Windows で `--force-unsupported --gdi`: 未サポート判定を迂回して GDI BitBlt 経路で続行する。実機で `--auto --iterations 3` を実行し、
-  GDI 経路で全計測が完走（取得経路 = GDI BitBlt、解像度一致 OK、終了コード 0）することを確認済み。
+  GDI 経路で全計測が完走（取得経路 = GDI BitBlt、解像度一致 OK、終了コード 0。カーソル切替は GDI 非対応のため計測対象外）することを確認済み。
+  これは強制フラグで分岐を通した経路確認であり、真に `IsSupported()==false` な実機での実測ではない。
 - 未サポート時の代替は GDI BitBlt（`--gdi`、本 spike に実装済み、カーソル切替不可）または Desktop Duplication。
 
 ## 未計測（坂口さんの実機で追加確認が必要な項目）
@@ -152,9 +153,12 @@ WSL2 から Windows で実行する場合は、`bin/Release/net8.0-windows10.0.1
 **出力先と機微データの扱い**: 出力（`measurements.md` と PNG）は既定で実行ファイルと同じ場所の `out/`（`dotnet run` なら `bin/Release/.../out/` で
 `.gitignore` の `bin/` 配下。`%TEMP%` 等にコピーして実行した場合はコピー先の `out/`）に書かれる。`--out` で別の場所を指定した場合はその場所が git 管理外であることを確認すること。PNG は**デスクトップ全面のキャプチャ**（他アプリの内容・認証画面等が
 写り込む）なので、確認後は削除し、リポジトリにコミットしない。`%TEMP%\CaptureOverlay-spike` にコピーして実行した場合も、終了後にそのディレクトリを削除する。
-終了コード: 例外・タイムアウト・Alignment セルフチェック失敗（ずれ計測値が無効）は 1 で終了する。プラットフォーム初期化の失敗（非対応環境で
-強引に起動した場合等）は runtime の abort コードになる。ただし解像度不一致（取得時間表の `NG`）は終了コードに現れないため、無人実行では
-終了コードに加えて `measurements.md` の判定行（`NG` / `**不一致**` / `**超過**`）も確認すること。
+終了コード: 引数の解釈エラー（不明な引数・値欠落・`--iterations` 不正）は 2、計測中の例外・120 秒タイムアウト・Alignment セルフチェック失敗
+（ずれ計測値が無効）は 1、未サポート環境での正常終了（非 Windows、または `--gdi` 無しの WGC 未サポート）は 0。Windows 上で Avalonia の
+初期化自体に失敗した場合は runtime の abort コード（非 0）になる。ただし計測結果の判定（解像度不一致 `NG`、座標 `**不一致**`、遅延 `**超過**`、
+除外 `**除外不可**` / `**失敗**` / `計測不能`、カーソル `**差分なし**`、D3D11 ドライバの WARP フォールバック注記）は終了コードに現れないため、
+無人実行では終了コードに加えて `measurements.md` 内の `**` で強調された行と取得時間表の `NG` が無いこと、および「D3D11 ドライバ」行が
+`HARDWARE` であることを確認すること。
 
 ## Sub-4 への申し送り
 
@@ -164,5 +168,7 @@ WSL2 から Windows で実行する場合は、`bin/Release/net8.0-windows10.0.1
 - 自身の除外: `WDA_EXCLUDEFROMCAPTURE` が WGC / GDI 双方に効く。録画（Sub-8）で使う。
 - TFM: `IsBorderRequired` を使うなら `net8.0-windows10.0.20348.0` 以上へ（API 導入ビルド）。黄枠抑止には `RequestAccessAsync(Borderless)` +
   `graphicsCaptureWithoutBorder` capability（パッケージ化）が必要。19041 のまま / 未パッケージなら黄枠は受容する。
-- フォールバック: `IsSupported()==false` の環境では GDI BitBlt（カーソル無し、本環境では遅延 +40 ms 程度）が候補。ただし未サポート環境での
-  GDI 経路は本 spike では未実測（WGC サポート機で `--gdi` を走らせた比較値のみ）。
+- フォールバック: `IsSupported()==false` の環境では GDI BitBlt（カーソル無し、本環境では遅延 +40 ms 程度）が候補。ただし真に未サポートな実機での
+  GDI 経路は未実測（WGC サポート機で `--gdi` / `--force-unsupported --gdi` を走らせた値のみ）。
+- 機微データ: 取得フレームはデスクトップ全面（他アプリの内容・認証画面を含みうる）。Sub-4 / Sub-8 では保存先・保持期間・ログ出力を機微データとして
+  扱い、保存先が設定や IPC から来る場合はベースディレクトリ配下への正規化と脱出検査を入れる（本 spike は `out/` 配下 + 手動削除で運用）。
