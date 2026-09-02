@@ -117,7 +117,6 @@ review:
 language: auto  # auto | ja | en
 
 # Wiki settings (LLM Wiki pattern for experience heuristics)
-# See docs/designs/experience-heuristics-persistence-layer.md for full specification.
 # Wiki is opt-out: default is enabled. Set `enabled: false` to disable.
 wiki:
   enabled: true               # true to enable Wiki features (default: true, opt-out)
@@ -127,7 +126,6 @@ wiki:
   auto_query: true            # Auto-query on start/review/fix/implement (default: true)
 
 # Multi-session settings (per-session Git worktree isolation)
-# See docs/designs/multi-session-worktree.md for full specification.
 # Lets multiple Claude Code sessions work different Issues in the same repo
 # concurrently: /rite:open creates a session worktree (.rite/worktrees/issue-{N})
 # and EnterWorktree-s into it, so each session keeps its own working tree /
@@ -137,12 +135,8 @@ wiki:
 # fan-out within a single session). Do not merge the two.
 # Disk cost: each session worktree is a FULL working-tree clone — build artifacts
 # (node_modules, venv, build caches) are NOT shared and may be rebuilt per worktree.
-# Declared ABOVE the `--- Advanced ---` marker (like wiki) so
-# /rite:setup new-generation emits it as an active block (so new projects actually
-# get the default-on behavior). On --upgrade it is back-added with `enabled: true`
-# to existing configs (see init.md Step 4 classification) so upgraded
-# projects receive the same default-on behavior; an existing explicit
-# `enabled: false` is preserved.
+# On `/rite:setup --upgrade` this section is back-added with `enabled: true` when
+# missing; an existing explicit `enabled: false` is preserved.
 multi_session:
   enabled: true                    # per-session worktrees (on by default); false to disable
   worktree_base: ".rite/worktrees" # session worktree base (issue-{N} subdirs)
@@ -153,23 +147,17 @@ multi_session:
 # Set `enabled: false` for doc-centric / non-software projects, or where
 # `commands.test` is null (Red/Green auto-run is then skipped). A config that
 # omits the `tdd:` key is treated as `enabled: true` (opt-out convention).
-# Declared ABOVE the `--- Advanced ---` marker (like wiki / multi_session) so
-# /rite:setup new-generation emits it as an active block (new projects get the
-# default-on behavior). On --upgrade it is back-added with `enabled: true` to
-# existing configs; an existing explicit `enabled: false` is preserved.
+# On `/rite:setup --upgrade` this section is back-added with `enabled: true` when
+# missing; an existing explicit `enabled: false` is preserved.
 tdd:
   enabled: true   # true: implementation phase runs the Canon TDD cycle (default: true, opt-out)
 
 # Safety settings (fail-closed thresholds)
 # Hard limits that stop runaway autonomous loops (implementation rounds, review-fix
-# cycles, repeated failures). Declared ABOVE the `--- Advanced ---` marker (like
-# wiki / multi_session / tdd) so /rite:setup new-generation emits it as an active
-# block — new projects can discover and tune the safety ceilings from the generated
-# config. Consumers read each value with an internal default, so a config that omits
-# `safety:` (or any single key) keeps the documented default behavior (backward
-# compatible). On --upgrade the section is back-added with these defaults; an
-# existing custom value is preserved. Values are UNCHANGED from the previous
-# Advanced (commented) block — only the position moved.
+# cycles, repeated failures). Consumers read each value with an internal default, so
+# a config that omits `safety:` (or any single key) keeps the documented default
+# behavior (backward compatible). On `/rite:setup --upgrade` the section is
+# back-added with these defaults; an existing custom value is preserved.
 safety:
   max_implementation_rounds: 20   # implementation round hard limit per Issue (default: 20)
   max_review_cycles: 15           # /rite:iterate circuit breaker backstop (default: 15). Primary fire condition is convergence-trend divergence
