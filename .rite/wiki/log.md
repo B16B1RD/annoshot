@@ -12,3 +12,4 @@ skip 等の機械可読状態は **各 raw source の frontmatter（`ingest_stat
 * **lint:clean** — contradictions=0, stale=0, orphans=0, missing_concept=0, unregistered_raw=0, broken_refs=0
 * **Create**: [.NET の GitHub Actions は global.json で SDK を固定し action は保守中のメジャーへ揃える](pages/heuristics/dotnet-ci-sdk-pin-and-action-maintenance.md) — raw/reviews/20260902T120848Z-pr-14.md, raw/fixes/20260902T121130Z-pr-14.md, raw/reviews/20260902T122526Z-pr-14.md を新規ページ化
 * **Create**: [Windows ランナーの CRLF checkout と end_of_line=lf の衝突は .gitattributes で LF を固定して解消する](pages/heuristics/windows-runner-crlf-gitattributes-lf.md) — raw/reviews/20260902T120848Z-pr-14.md を新規ページ化
+* **lint:clean** — contradictions=0, stale=0, orphans=0, missing_concept=0, unregistered_raw=0, broken_refs=0
