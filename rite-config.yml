@@ -1,0 +1,178 @@
+# rite-workflow configuration file
+schema_version: 2
+
+# GitHub Projects integration
+github:
+  projects:
+    enabled: true
+    project_number: 14    # Project number (null = auto-detect from repository)
+    owner: "B16B1RD"      # Project owner (null = use repository owner)
+    # Localized field-name overrides (optional):
+    #   Set `name:` under a field when your Project uses a non-English field name.
+    #   Default (key omitted) resolves via the built-in EN<->JA aliases
+    #   (Status<->ステータス, Priority<->優先度, Complexity<->複雑度), so Japanese-named
+    #   Projects work with zero config. `name:` takes precedence over the alias.
+    fields:
+      status:
+        enabled: true
+        # name: "ステータス"   # optional: actual Status field name in the Project
+        options:
+          - { name: "Todo", default: true }
+          - { name: "In Progress" }
+          - { name: "In Review" }
+          - { name: "Done" }
+      priority:
+        enabled: true
+        # name: "優先度"       # optional: actual Priority field name in the Project
+        options:
+          - { name: "High" }
+          - { name: "Medium", default: true }
+          - { name: "Low" }
+      complexity:
+        enabled: true
+        # name: "複雑度"       # optional: actual Complexity field name in the Project
+        options:
+          - { name: "XS" }
+          - { name: "S" }
+          - { name: "M", default: true }
+          - { name: "L" }
+          - { name: "XL" }
+    # Explicit field IDs (optional, overrides auto-detection)
+    # Use this when:
+    #   - API auto-detection fails (e.g., permission issues, organization policy restrictions)
+    #   - You want consistent field IDs without relying on auto-detection
+    # Note: Option IDs (e.g., "In Progress", "Done") are always fetched via API
+    # Find field IDs: gh project field-list {project_number} --owner {owner} --format json
+    # field_ids:
+    #   status: "PVTSSF_..."      # Status field ID
+    #   priority: "PVTSSF_..."    # Priority field ID
+    #   complexity: "PVTSSF_..."  # Complexity field ID
+
+# Iteration/Sprint settings (optional)
+# To use this feature, create an Iteration field in GitHub Projects manually
+iteration:
+  enabled: false          # true to enable iteration features
+  field_name: "Sprint"    # Name of the iteration field in Projects
+  auto_assign: true       # Auto-assign to current iteration on /rite:open
+  show_in_list: true      # Show iteration column in issue-list
+
+# Branch naming rules
+branch:
+  # Base branch for feature branches (default PR target)
+  base: "main"      # default: main (use "develop" for Git Flow)
+  pattern: "{type}/issue-{number}-{slug}"
+  # Recognized patterns for non-standard branches (optional)
+  # These patterns allow rite workflow to recognize existing branches
+  # that don't follow the standard issue-based naming convention
+  # recognized_patterns:
+  #   - "migration/phase{n}-{category}"    # e.g., migration/phase4-admin-tutorials
+  #   - "i18n/{locale}"                    # e.g., i18n/zh-tw
+  #   - "hotfix/{date}-{description}"      # e.g., hotfix/20250109-critical-fix
+
+# Build/test/lint commands (null = auto-detect)
+commands:
+  build: null
+  test: null
+  lint: null
+
+# Verification gate settings
+verification:
+  run_tests_before_pr: true          # Run tests before commit/PR (requires commands.test)
+  acceptance_criteria_check: true    # Check acceptance criteria from Issue body before PR
+
+# Issue settings
+issue:
+  auto_decompose_threshold: M  # XS | S | M | L | XL | none (default: M)
+
+# Review settings
+review:
+  min_reviewers: 1      # Fallback when no reviewers match
+  max_reviewers: 6      # Cost cap: max reviewers spawned per review (default 6, silent capping prohibited)
+  criteria:
+    - file_types
+    - content_analysis
+  loop:
+    verification_mode: false
+    allow_new_findings_in_unchanged_code: false
+  security_reviewer:
+    mandatory: false
+    recommended_for_code_changes: true
+  debate:
+    enabled: true
+    max_rounds: 1
+  confidence_threshold: 80   # Minimum confidence score for findings table (default: 80)
+  fact_check:
+    enabled: true
+    max_claims: 20                    # External claim のみに適用（Internal Likelihood は枠外）
+    use_context7: true                # context7 MCP を利用（失敗時は WebSearch fallback で自動回復）
+    verify_internal_likelihood: true  # Sub-Phase B (Internal Likelihood Claim Verification) を有効化 — 詳細: plugins/rite/skills/pr-review/references/fact-check.md
+  scope_assignment:
+    # scope=nit-noted 受け流し経路設定。reviewer が schema 1.1.0 で出力する
+    # findings[].scope に基づく fix loop routing 制御。auto_demote_low は
+    # plugins/rite/scripts/review-findings-maps.sh と plugins/rite/skills/fix/SKILL.md が
+    # rite-config.yml から直接読み取って適用する（配線済み）。
+    auto_demote_low: true    # LOW × current-pr の finding を fix.md ステップ 1.2.0 で自動的に nit-noted へ降格 (default: true)。false で opt-out した場合は LOW × current-pr が通常通り blocking 扱いで fix loop に流れる
+
+# Language setting (auto = auto-detect)
+language: auto  # auto | ja | en
+
+# Wiki settings (LLM Wiki pattern for experience heuristics)
+# See docs/designs/experience-heuristics-persistence-layer.md for full specification.
+# Wiki is opt-out: default is enabled. Set `enabled: false` to disable.
+wiki:
+  enabled: true               # true to enable Wiki features (default: true, opt-out)
+  branch_strategy: "separate_branch"  # "separate_branch" (recommended) or "same_branch"
+  branch_name: "wiki"         # Branch name for Wiki data (when branch_strategy is "separate_branch")
+  auto_ingest: true           # Auto-ingest on review/fix/close (default: true)
+  auto_query: true            # Auto-query on start/review/fix/implement (default: true)
+
+# Multi-session settings (per-session Git worktree isolation)
+# See docs/designs/multi-session-worktree.md for full specification.
+# Lets multiple Claude Code sessions work different Issues in the same repo
+# concurrently: /rite:open creates a session worktree (.rite/worktrees/issue-{N})
+# and EnterWorktree-s into it, so each session keeps its own working tree /
+# current branch. Default `enabled: true` (on by default); set to
+# false to restore single-session behavior.
+# NOTE: this is a SEPARATE axis from `parallel` (which is per-Issue sub-agent
+# fan-out within a single session). Do not merge the two.
+# Disk cost: each session worktree is a FULL working-tree clone — build artifacts
+# (node_modules, venv, build caches) are NOT shared and may be rebuilt per worktree.
+# Declared ABOVE the `--- Advanced ---` marker (like wiki) so
+# /rite:setup new-generation emits it as an active block (so new projects actually
+# get the default-on behavior). On --upgrade it is back-added with `enabled: true`
+# to existing configs (see init.md Step 4 classification) so upgraded
+# projects receive the same default-on behavior; an existing explicit
+# `enabled: false` is preserved.
+multi_session:
+  enabled: true                    # per-session worktrees (on by default); false to disable
+  worktree_base: ".rite/worktrees" # session worktree base (issue-{N} subdirs)
+
+# Test-Driven Development (Canon TDD) settings
+# Default ON (opt-out). When enabled, the implementation phase drives a Canon TDD
+# cycle (test list -> pick one -> Red -> minimal Green -> Refactor -> repeat).
+# Set `enabled: false` for doc-centric / non-software projects, or where
+# `commands.test` is null (Red/Green auto-run is then skipped). A config that
+# omits the `tdd:` key is treated as `enabled: true` (opt-out convention).
+# Declared ABOVE the `--- Advanced ---` marker (like wiki / multi_session) so
+# /rite:setup new-generation emits it as an active block (new projects get the
+# default-on behavior). On --upgrade it is back-added with `enabled: true` to
+# existing configs; an existing explicit `enabled: false` is preserved.
+tdd:
+  enabled: true   # true: implementation phase runs the Canon TDD cycle (default: true, opt-out)
+
+# Safety settings (fail-closed thresholds)
+# Hard limits that stop runaway autonomous loops (implementation rounds, review-fix
+# cycles, repeated failures). Declared ABOVE the `--- Advanced ---` marker (like
+# wiki / multi_session / tdd) so /rite:setup new-generation emits it as an active
+# block — new projects can discover and tune the safety ceilings from the generated
+# config. Consumers read each value with an internal default, so a config that omits
+# `safety:` (or any single key) keeps the documented default behavior (backward
+# compatible). On --upgrade the section is back-added with these defaults; an
+# existing custom value is preserved. Values are UNCHANGED from the previous
+# Advanced (commented) block — only the position moved.
+safety:
+  max_implementation_rounds: 20   # implementation round hard limit per Issue (default: 20)
+  max_review_cycles: 15           # /rite:iterate circuit breaker backstop (default: 15). Primary fire condition is convergence-trend divergence
+  time_budget_minutes: 120        # advisory time budget per Issue (not enforced by timer)
+  auto_stop_on_repeated_failure: true   # stop after repeated same-class failures
+  repeated_failure_threshold: 3   # consecutive same-class failures that trigger auto-stop
