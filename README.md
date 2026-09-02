@@ -20,6 +20,7 @@ Windows 用の操作説明ビジュアル制作ツール。
 | `src/Annoshot.Windows` | `net8.0-windows10.0.19041.0` | WinRT / Win32 のラッパ |
 | `src/Annoshot.App` | `net8.0-windows10.0.19041.0` | Avalonia デスクトップアプリ本体 |
 | `tests/Annoshot.Core.Tests` | `net8.0` | Core の単体テスト |
+| `spikes/*` | 個別 | 使い捨ての技術 spike。`Annoshot.sln` に含めず CI の対象外。結論は各 `RESULT.md` に残す |
 
 ## ビルド
 

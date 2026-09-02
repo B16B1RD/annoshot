@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    使い捨て spike。Annoshot.sln には登録せず、CI の対象外。
+    ビルド / 実行は spikes/CaptureOverlay/RESULT.md の「検証手順」を参照。
+    ルートの Directory.Build.props（TreatWarningsAsErrors / EnforceCodeStyleInBuild）はそのまま適用する。
+  -->
+  <PropertyGroup>
+    <!-- 計測値をコンソールに流すため WinExe ではなく Exe（コンソール付き） -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- IGraphicsCaptureItemInterop を ComImport で扱うため -->
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <RootNamespace>CaptureOverlay</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- src/Annoshot.App と同一バージョンに揃える（オフライン環境でローカルキャッシュのみで解決するため） -->
+    <PackageReference Include="Avalonia" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.20" />
+  </ItemGroup>
+
+</Project>
