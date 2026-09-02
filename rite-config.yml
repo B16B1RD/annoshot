@@ -71,9 +71,9 @@ branch:
 
 # Build/test/lint commands (null = auto-detect)
 commands:
-  build: null
-  test: null
-  lint: null
+  build: "dotnet build Annoshot.sln"
+  test: "dotnet test Annoshot.sln"
+  lint: "dotnet format Annoshot.sln --verify-no-changes"
 
 # Verification gate settings
 verification:

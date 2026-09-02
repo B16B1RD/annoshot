@@ -3,3 +3,5 @@ obj/
 .vs/
 *.user
 .claude/settings.local.json
+TestResults/
+*.binlog
