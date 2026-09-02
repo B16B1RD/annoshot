@@ -26,7 +26,8 @@ internal sealed class WgcCapture : IFrameSource
 
     public WgcCapture()
     {
-        IntPtr devicePtr = Win32.CreateWinRtDirect3DDevice();
+        IntPtr devicePtr = Win32.CreateWinRtDirect3DDevice(out string driver);
+        D3DDriver = driver;
         try
         {
             _device = MarshalInterface<IDirect3DDevice>.FromAbi(devicePtr);
@@ -63,6 +64,9 @@ internal sealed class WgcCapture : IFrameSource
     public string Name => "Windows.Graphics.Capture";
 
     public bool SupportsCursorToggle { get; }
+
+    /// <summary>D3D11 デバイスのドライバ種別（HARDWARE / WARP）。WARP なら取得時間は参考値。</summary>
+    public string D3DDriver { get; }
 
     /// <summary>IsBorderRequired（黄枠の抑止）は 10.0.20348 以降の投影にしか無く、本 spike の TFM (19041) では型に現れない。</summary>
     public static bool IsBorderRequiredPresent

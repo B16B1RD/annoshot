@@ -30,9 +30,10 @@ internal static class SpikeRunner
         }
         catch (Exception ex)
         {
+            // 無人実行の失敗は終了コードで検知できるようにする（measurements.md を開くまで気づけないのを防ぐ）
             report.Line($"**ERROR**: {ex}");
             Console.Error.WriteLine(ex);
-            session.Finish();
+            session.Finish(exitCode: 1);
         }
     }
 
@@ -75,6 +76,19 @@ internal static class SpikeRunner
 
         public async Task RunAsync()
         {
+            if (_options.Auto)
+            {
+                // 無人実行で全画面 topmost が残り続けないよう、上限時間で強制終了する。
+                // 初期化（出力先作成・モニタ列挙・D3D デバイス生成）の失敗経路も覆うため最初に登録する
+                _ = Task.Delay(_autoModeTimeout).ContinueWith(
+                    _ => Dispatcher.UIThread.Post(() =>
+                    {
+                        _report.Line($"**TIMEOUT**: {_autoModeTimeout.TotalSeconds:0} 秒で打ち切り");
+                        Finish(exitCode: 1);
+                    }),
+                    TaskScheduler.Default);
+            }
+
             Directory.CreateDirectory(_options.OutDir);
             _monitors = Win32.EnumerateMonitors();
             _source = _options.UseGdi ? new GdiCapture() : new WgcCapture();
@@ -83,15 +97,6 @@ internal static class SpikeRunner
 
             if (_options.Auto)
             {
-                // 無人実行で全画面 topmost が残り続けないよう、上限時間で強制終了する
-                _ = Task.Delay(_autoModeTimeout).ContinueWith(
-                    _ => Dispatcher.UIThread.Post(() =>
-                    {
-                        _report.Line($"**TIMEOUT**: {_autoModeTimeout.TotalSeconds:0} 秒で打ち切り");
-                        Finish();
-                    }),
-                    TaskScheduler.Default);
-
                 bool selfCheckOk = Alignment.SelfCheck(out string detail);
                 _measurementsValid = selfCheckOk;
                 _report.Line(selfCheckOk
@@ -133,7 +138,7 @@ internal static class SpikeRunner
             Finish();
         }
 
-        public void Finish()
+        public void Finish(int exitCode = 0)
         {
             if (_finished)
             {
@@ -141,16 +146,28 @@ internal static class SpikeRunner
             }
 
             _finished = true;
-            foreach (OverlayWindow overlay in _overlays)
+            try
             {
-                overlay.Close();
-            }
+                foreach (OverlayWindow overlay in _overlays)
+                {
+                    overlay.Close();
+                }
 
-            _overlays.Clear();
-            _source?.Dispose();
-            _report.Flush();
-            Console.WriteLine($"結果: {_report.Path}");
-            _desktop.Shutdown();
+                _overlays.Clear();
+                _source?.Dispose();
+                _report.Flush();
+                Console.WriteLine($"結果: {_report.FilePath}");
+            }
+            catch (Exception ex)
+            {
+                // 退路自体の失敗（出力先に書けない等）でプロセスを残さない。Shutdown は finally で必ず通す
+                Console.Error.WriteLine($"終了処理で例外: {ex}");
+                exitCode = exitCode == 0 ? 1 : exitCode;
+            }
+            finally
+            {
+                _desktop.Shutdown(exitCode);
+            }
         }
 
         private void WriteEnvironment()
@@ -160,8 +177,11 @@ internal static class SpikeRunner
             _report.Line($"- OS: {Environment.OSVersion} ({(Environment.Is64BitOperatingSystem ? "x64" : "x86")})");
             _report.Line($"- .NET: {Environment.Version} / Avalonia: {typeof(Application).Assembly.GetName().Version}");
             _report.Line($"- 取得経路: {_source!.Name} (cursor toggle: {_source.SupportsCursorToggle})");
-            if (_source is WgcCapture)
+            if (_source is WgcCapture wgc)
             {
+                _report.Line(wgc.D3DDriver == "HARDWARE"
+                    ? "- D3D11 ドライバ: HARDWARE"
+                    : $"- D3D11 ドライバ: {wgc.D3DDriver} **（ソフトウェアラスタライザへのフォールバック。取得時間は参考値）**");
                 _report.Line($"- IsBorderRequired API 存在: {WgcCapture.IsBorderRequiredPresent}（TFM 19041 の投影には無いため未検証）");
             }
 
@@ -197,7 +217,7 @@ internal static class SpikeRunner
                 bool sizeMatch = last!.Width == monitor.Width && last.Height == monitor.Height;
                 string png = Path.Combine(_options.OutDir, $"frame-{i}.png");
                 last.SavePng(png);
-                _report.Line($"| {monitor.DeviceName} | {last.Width}x{last.Height} | {Median(samples):0.0} | {samples.Min():0.0} | {samples.Max():0.0} | {(sizeMatch ? "OK" : "NG")} ({System.IO.Path.GetFileName(png)}) |");
+                _report.Line($"| {monitor.DeviceName} | {last.Width}x{last.Height} | {Median(samples):0.0} | {samples.Min():0.0} | {samples.Max():0.0} | {(sizeMatch ? "OK" : "NG")} ({Path.GetFileName(png)}) |");
             }
         }
 
@@ -350,24 +370,50 @@ internal static class SpikeRunner
             }
         }
 
-        private void OnRegionSelected(OverlayWindow overlay, PixelRect screenRect)
+        private void OnRegionSelected(OverlayWindow overlay, PixelRect requested)
         {
-            _cropCount++;
-            FrameData crop = overlay.Frame.Crop(overlay.ToFrameRect(screenRect));
-            string png = Path.Combine(_options.OutDir, $"crop-{_cropCount}.png");
-            crop.SavePng(png);
-
-            string alignment = "（矩形が小さく比較不能）";
-            if (crop.Width > Alignment.DefaultMaxShift * 2 + 1 && crop.Height > Alignment.DefaultMaxShift * 2 + 1)
+            // PointerReleased 派生の dispatcher ターンで動くため RunAsync の try/catch には入らない。
+            // ここで捕捉しないと全画面 topmost を残したまま UI スレッド例外で落ちる
+            try
             {
-                FrameData live = GdiCapture.CaptureRegion(screenRect.X, screenRect.Y, screenRect.Width, screenRect.Height);
-                alignment = Alignment.Find(crop, live).ToString();
-            }
+                _cropCount++;
 
-            string line = $"- #{_cropCount} {overlay.Monitor.DeviceName} ({overlay.Monitor.Dpi}dpi) rect={screenRect} → {System.IO.Path.GetFileName(png)} ずれ {alignment}";
-            _report.Line(line);
-            Console.WriteLine(line);
-            overlay.SetHud($"{overlay.Monitor.Label}\n保存: {png}\nずれ: {alignment}\nドラッグで切り出し / Esc で終了");
+                // Crop はフレーム外を無言でクランプする。隣モニタへ抜けたドラッグ等でクランプが起きると
+                // 「保存 PNG」「BitBlt する矩形」「ログの rect」が食い違うので、入口で 1 度だけ交差させて全員に同じ矩形を渡す
+                MonitorInfo monitor = overlay.Monitor;
+                var monitorRect = new PixelRect(monitor.Bounds.Left, monitor.Bounds.Top, monitor.Width, monitor.Height);
+                PixelRect screenRect = requested.Intersect(monitorRect);
+                string clampNote = screenRect == requested ? string.Empty : $"（モニタ外をクランプ: 要求 {requested}）";
+                if (screenRect.Width <= 0 || screenRect.Height <= 0)
+                {
+                    string skipped = $"- #{_cropCount} {monitor.DeviceName} rect={requested} → モニタ外のためスキップ";
+                    _report.Line(skipped);
+                    overlay.SetHud($"{monitor.Label}\n{skipped}\nドラッグで切り出し / Esc で終了");
+                    return;
+                }
+
+                FrameData crop = overlay.Frame.Crop(overlay.ToFrameRect(screenRect));
+                string png = Path.Combine(_options.OutDir, $"crop-{_cropCount}.png");
+                crop.SavePng(png);
+
+                string alignment = "（矩形が小さく比較不能）";
+                if (crop.Width > Alignment.DefaultMaxShift * 2 + 1 && crop.Height > Alignment.DefaultMaxShift * 2 + 1)
+                {
+                    FrameData live = GdiCapture.CaptureRegion(screenRect.X, screenRect.Y, screenRect.Width, screenRect.Height);
+                    alignment = Alignment.Find(crop, live).ToString();
+                }
+
+                string line = $"- #{_cropCount} {monitor.DeviceName} ({monitor.Dpi}dpi) rect={screenRect}{clampNote} → {Path.GetFileName(png)} ずれ {alignment}";
+                _report.Line(line);
+                Console.WriteLine(line);
+                overlay.SetHud($"{monitor.Label}\n保存: {png}{clampNote}\nずれ: {alignment}\nドラッグで切り出し / Esc で終了");
+            }
+            catch (Exception ex)
+            {
+                _report.Line($"**ERROR**（ドラッグ #{_cropCount}）: {ex}");
+                Console.Error.WriteLine(ex);
+                Finish(exitCode: 1);
+            }
         }
 
         private void DumpGeometryLog()
@@ -389,14 +435,14 @@ internal static class SpikeRunner
     {
         private readonly StringBuilder _lines = new();
 
-        public Report(string path)
+        public Report(string filePath)
         {
-            Path = path;
+            FilePath = filePath;
             _lines.AppendLine("# CaptureOverlay measurements");
             _lines.AppendLine();
         }
 
-        public string Path { get; }
+        public string FilePath { get; }
 
         public void Section(string title)
         {
@@ -414,8 +460,8 @@ internal static class SpikeRunner
 
         public void Flush()
         {
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(Path))!);
-            File.WriteAllText(Path, _lines.ToString());
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(FilePath))!);
+            File.WriteAllText(FilePath, _lines.ToString());
         }
     }
 }

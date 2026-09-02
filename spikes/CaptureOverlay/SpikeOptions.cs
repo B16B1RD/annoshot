@@ -12,10 +12,11 @@ internal sealed class SpikeOptions
           --gdi                 取得経路を Windows.Graphics.Capture ではなく GDI BitBlt にする
           --force-unsupported   IsSupported() の戻り値を false に差し替える（AC-6 の経路確認用）
           --iterations N        取得時間 / 表示遅延の試行回数（既定 10）
-          --out DIR             出力ディレクトリ（既定 out）
+          --out DIR             出力ディレクトリ（既定: 実行ファイルと同じ場所の out/。bin/ 配下なので git に入らない）
           --help                この説明を表示する
 
         既定（--auto なし）はオーバーレイを表示し、矩形ドラッグで切り出し PNG を保存する。Esc で終了。
+        出力 PNG はデスクトップ全面のキャプチャ。確認後に削除し、リポジトリにコミットしないこと。
         """;
 
     public static SpikeOptions Current { get; set; } = new();
@@ -30,7 +31,9 @@ internal sealed class SpikeOptions
 
     public int Iterations { get; private set; } = 10;
 
-    public string OutDir { get; private set; } = "out";
+    // CWD 相対にすると、文書化した `dotnet run --project ...` をリポジトリルートで実行したときに
+    // デスクトップ全面 PNG が <repo-root>/out/ に落ちて git add -A で混入する。bin/ 配下に閉じる
+    public string OutDir { get; private set; } = Path.Combine(AppContext.BaseDirectory, "out");
 
     public static SpikeOptions Parse(string[] args)
     {

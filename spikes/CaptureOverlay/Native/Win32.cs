@@ -28,16 +28,17 @@ internal static class Win32
         var monitors = new List<MonitorInfo>();
         MonitorEnumProc callback = (IntPtr hMonitor, IntPtr hdc, ref Rect rect, IntPtr data) =>
         {
+            // DPI 計測が目的の spike で失敗を既定値に潰すと、症状だけが計測値に混入する。fail-fast にする
             var info = new MonitorInfoEx { CbSize = (uint)Marshal.SizeOf<MonitorInfoEx>() };
             if (!GetMonitorInfoW(hMonitor, ref info))
             {
-                return true;
+                throw new InvalidOperationException($"GetMonitorInfoW に失敗しました (Win32 error {Marshal.GetLastWin32Error()})");
             }
 
-            uint dpi = 96;
-            if (GetDpiForMonitor(hMonitor, _mdtEffectiveDpi, out uint dpiX, out uint _) == 0)
+            int hr = GetDpiForMonitor(hMonitor, _mdtEffectiveDpi, out uint dpiX, out uint _);
+            if (hr != 0)
             {
-                dpi = dpiX;
+                throw new InvalidOperationException($"GetDpiForMonitor に失敗しました (HRESULT 0x{hr:X8}, {info.SzDevice})");
             }
 
             monitors.Add(new MonitorInfo(
@@ -45,7 +46,7 @@ internal static class Win32
                 info.SzDevice,
                 info.RcMonitor,
                 (info.DwFlags & _monitorinfofPrimary) != 0,
-                dpi));
+                dpiX));
             return true;
         };
 
@@ -142,7 +143,12 @@ internal static class Win32
 
     public static (int X, int Y) GetCursorPosition()
     {
-        return GetCursorPos(out Point point) ? (point.X, point.Y) : (0, 0);
+        if (!GetCursorPos(out Point point))
+        {
+            throw new InvalidOperationException($"GetCursorPos に失敗しました (Win32 error {Marshal.GetLastWin32Error()})");
+        }
+
+        return (point.X, point.Y);
     }
 
     /// <summary>WinRT の activation factory を IUnknown ポインタで取得する（呼び出し側が Release する）。</summary>
@@ -162,8 +168,12 @@ internal static class Win32
         }
     }
 
-    /// <summary>D3D11 デバイスを作り IDXGIDevice 経由で WinRT IDirect3DDevice（IInspectable ポインタ）に変換する。</summary>
-    public static IntPtr CreateWinRtDirect3DDevice()
+    /// <summary>
+    /// D3D11 デバイスを作り IDXGIDevice 経由で WinRT IDirect3DDevice（IInspectable ポインタ）に変換する。
+    /// <paramref name="driver"/> に実際に使われたドライバ種別（HARDWARE / WARP）を返す。WARP に落ちた計測は
+    /// ソフトウェアラスタライザの数値なので、呼び出し側が計測条件として記録できるようにする。
+    /// </summary>
+    public static IntPtr CreateWinRtDirect3DDevice(out string driver)
     {
         var dxgiDeviceIid = new Guid("54ec77fa-1377-44e6-8c32-88fd5f44c84c");
         IntPtr device = IntPtr.Zero;
@@ -171,11 +181,13 @@ internal static class Win32
         IntPtr dxgiDevice = IntPtr.Zero;
         try
         {
+            driver = "HARDWARE";
             int hr = D3D11CreateDevice(IntPtr.Zero, _d3DDriverTypeHardware, IntPtr.Zero, _d3D11CreateDeviceBgraSupport,
                 IntPtr.Zero, 0, _d3D11SdkVersion, out device, out int _, out context);
             if (hr < 0)
             {
                 // GPU ドライバ無し（リモートデスクトップ等）では WARP に落とす
+                driver = "WARP";
                 hr = D3D11CreateDevice(IntPtr.Zero, _d3DDriverTypeWarp, IntPtr.Zero, _d3D11CreateDeviceBgraSupport,
                     IntPtr.Zero, 0, _d3D11SdkVersion, out device, out int _, out context);
             }
