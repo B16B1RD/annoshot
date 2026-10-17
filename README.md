@@ -41,4 +41,6 @@ dotnet run --project src/Annoshot.App   # Windows のみ
 ## 既知の制約
 
 - 開発ホストは WSL2 を想定している。`Directory.Build.props` の `EnableWindowsTargeting` により WSL 上でも Windows TFM を含む全プロジェクトの build / test は通るが、`Annoshot.App` の起動は Windows 上でのみ可能。
+- `dotnet run --project src/Annoshot.App` は Linux (WSL2) では起動エラーにならず、無出力のまま常駐する（`DISPLAY` / `WAYLAND_DISPLAY` が設定された WSLg 環境で確認。ウィンドウの描画までは確認していない）。Windows 向けの機能は動作しない前提で扱い、ハングに見えたら Ctrl+C で止める。起動確認は Windows で行う。
+- `dotnet build` / `dotnet test` / `dotnet format --verify-no-changes` は、クリーンな状態（`git clean -fdx` 後）からの Debug と、CI と同じ Release（`--no-restore` / `--no-build`）のどちらも Linux で通る（SDK 8.0.131）。初回の `dotnet restore` は NuGet への接続が必要。
 - 正式な検証は CI（`windows-latest`）で行う。
